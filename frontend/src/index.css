@@ -22,6 +22,42 @@
   --font-ledger: "JetBrains Mono", "Courier New", monospace;
 }
 
+/*
+ * Dark mode — a warm dark palette, not an inverted one.
+ *
+ * Every component in this app is built entirely from the tokens above
+ * (bg-paper, text-ink, bg-surface, etc.) — Tailwind v4 compiles each of
+ * those utilities to e.g. `background-color: var(--color-paper)`, a real
+ * runtime CSS variable reference, not a baked-in hex value. So redefining
+ * the variables themselves under `html.dark` re-themes the entire app with
+ * zero changes to any component's className. `html.dark` (an element +
+ * class selector) is used rather than relying on source order to beat the
+ * `:root` block above, so this override is robust regardless of how the
+ * build tool orders things.
+ *
+ * Elevation in dark mode leans on the surface/border contrast rather than
+ * the existing soft ink-tinted box-shadows (which stay defined as-is) —
+ * a near-black shadow has no visible contrast against an already-dark
+ * background, so shadows quietly become a no-op here. That's intentional,
+ * not a bug: it's the standard dark-UI convention this app already half
+ * has, since every card already pairs bg-surface with border-hairline.
+ */
+html.dark {
+  --color-paper: #1a1611;
+  --color-paper-dim: #241f17;
+  --color-ink: #f3ead8;
+  --color-ink-soft: #cbbfa3;
+  --color-accent: #f0aa42;
+  --color-accent-soft: #4a3417;
+  --color-success: #4cbf80;
+  --color-success-soft: #1d3327;
+  --color-danger: #e8795f;
+  --color-danger-soft: #3b211b;
+  --color-muted: #9c9485;
+  --color-hairline: #3a3326;
+  --color-surface: #2a2418;
+}
+
 @layer base {
   html {
     font-family: var(--font-body);
@@ -30,6 +66,7 @@
   body {
     background-color: var(--color-paper);
     color: var(--color-ink);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   h1, h2, h3, h4 {

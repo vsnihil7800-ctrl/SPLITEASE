@@ -2,9 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!--
+      Sets the `dark` class on <html> before first paint, so there's no
+      flash of the wrong theme on load. Must run synchronously, before any
+      stylesheet paints — kept as a tiny inline script (not a module) so the
+      browser executes it immediately during head parsing rather than after.
+      Keep this in sync with ThemeContext.jsx's THEME_KEY ("splitease_theme")
+      and read-back logic.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("splitease_theme");
+          var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (stored === "dark" || (!stored && prefersDark)) {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {
+          /* localStorage unavailable (e.g. private mode) — fall back to light */
+        }
+      })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="SplitEase Stay - split expenses, track bills, and settle up with your roommates, hostel mates, team, or college group." />
+
+    <!-- PWA / installed-app behavior -->
+    <meta name="theme-color" content="#f7f5ef" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SplitEase Stay" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
