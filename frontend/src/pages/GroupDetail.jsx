@@ -13,6 +13,7 @@ import BillsPanel from "../components/BillsPanel";
 import BalancesPanel from "../components/BalancesPanel";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 import ChatPanel from "../components/ChatPanel";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function GroupDetail() {
   const { id } = useParams();
@@ -119,9 +120,12 @@ export default function GroupDetail() {
     <div className="min-h-screen bg-paper">
       <header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
         <Logo />
-        <Link to="/dashboard" className="text-sm font-medium text-ink-soft hover:text-accent">
-          ← Back to groups
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link to="/dashboard" className="text-sm font-medium text-ink-soft hover:text-accent">
+            ← Back to groups
+          </Link>
+        </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-8">

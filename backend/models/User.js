@@ -31,6 +31,28 @@ const UserSchema = new mongoose.Schema(
         ref: "Group",
       },
     ],
+    // ── Email verification ────────────────────────────────────────────────────
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerifyToken: {
+      type: String,
+      select: false,
+    },
+    emailVerifyExpires: {
+      type: Date,
+      select: false,
+    },
+    // ── Password reset ────────────────────────────────────────────────────────
+    passwordResetToken: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false,
+    },
   },
   { timestamps: true }
 );

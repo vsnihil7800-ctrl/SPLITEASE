@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import Logo from "../components/Logo";
 import Button from "../components/Button";
 import LedgerPreview from "../components/LedgerPreview";
+import ThemeToggle from "../components/ThemeToggle";
 
 const features = [
   {
@@ -29,6 +30,7 @@ export default function Landing() {
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Logo />
         <nav className="flex items-center gap-3">
+          <ThemeToggle />
           <Link to="/login">
             <Button variant="ghost">Sign in</Button>
           </Link>

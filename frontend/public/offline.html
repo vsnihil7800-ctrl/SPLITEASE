@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SplitEase Stay — Offline</title>
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #f7f5ef;
+        color: #16243d;
+        font-family: "Segoe UI", Inter, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card {
+        max-width: 360px;
+        text-align: center;
+        padding: 2rem 1.5rem;
+      }
+      .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #e3992f;
+        margin: 0 auto 1rem;
+      }
+      h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        font-size: 0.9rem;
+        color: #6b7280;
+        line-height: 1.5;
+        margin: 0 0 1.25rem;
+      }
+      button {
+        font: inherit;
+        font-weight: 500;
+        padding: 0.6rem 1.25rem;
+        border-radius: 0.5rem;
+        border: none;
+        background: #16243d;
+        color: #f7f5ef;
+        cursor: pointer;
+      }
+      @media (prefers-color-scheme: dark) {
+        html, body { background: #1a1611; color: #f3ead8; }
+        button { background: #f3ead8; color: #1a1611; }
+        p { color: #9c9485; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="dot"></div>
+      <h1>You're offline</h1>
+      <p>SplitEase Stay needs a connection to load your groups and balances. Reconnect and try again.</p>
+      <button onclick="location.reload()">Retry</button>
+    </div>
+  </body>
+</html>

@@ -4,6 +4,8 @@ import { useAuth } from "../context/useAuth";
 import Logo from "../components/Logo";
 import Input from "../components/Input";
 import Button from "../components/Button";
+import ThemeToggle from "../components/ThemeToggle";
+import { resendVerificationRequest } from "../api/auth";
 
 export default function Register() {
   const { register, error, setError } = useAuth();
@@ -16,6 +18,9 @@ export default function Register() {
     upiId: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [resendStatus, setResendStatus] = useState(""); // "" | "sending" | "sent"
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -34,12 +39,67 @@ export default function Register() {
     const result = await register(form);
     setSubmitting(false);
     if (result.success) {
-      navigate("/dashboard");
+      setRegisteredEmail(form.email);
+      setRegistered(true);
     }
   };
 
+  const handleResend = async () => {
+    setResendStatus("sending");
+    try {
+      await resendVerificationRequest(registeredEmail);
+      setResendStatus("sent");
+    } catch {
+      setResendStatus("");
+    }
+  };
+
+  if (registered) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper px-6 py-12">
+        <div className="fixed right-4 top-4"><ThemeToggle /></div>
+        <div className="w-full max-w-sm">
+          <div className="mb-8 flex justify-center"><Logo /></div>
+          <div className="rounded-2xl border border-hairline bg-surface p-7 shadow-[0_12px_32px_-16px_rgba(22,36,61,0.15)] text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-2xl">📬</div>
+            <h1 className="font-display text-xl font-semibold text-ink">Check your inbox</h1>
+            <p className="mt-2 text-sm text-muted">
+              We sent a verification link to{" "}
+              <span className="font-medium text-ink">{registeredEmail}</span>.
+              Click it to activate your account.
+            </p>
+            <p className="mt-4 text-sm text-muted">
+              Didn't get it?{" "}
+              {resendStatus === "sent" ? (
+                <span className="font-medium text-success">Sent! Check your spam too.</span>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendStatus === "sending"}
+                  className="font-medium text-accent hover:underline disabled:opacity-50"
+                >
+                  {resendStatus === "sending" ? "Sending…" : "Resend email"}
+                </button>
+              )}
+            </p>
+            <p className="mt-4 text-xs text-muted">
+              You can also{" "}
+              <button onClick={() => navigate("/dashboard")} className="font-medium text-ink hover:text-accent">
+                skip for now
+              </button>{" "}
+              and verify later.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper px-6 py-12">
+      <div className="fixed right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex justify-center">
           <Logo />

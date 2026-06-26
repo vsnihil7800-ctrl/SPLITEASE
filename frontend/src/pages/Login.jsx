@@ -4,6 +4,7 @@ import { useAuth } from "../context/useAuth";
 import Logo from "../components/Logo";
 import Input from "../components/Input";
 import Button from "../components/Button";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Login() {
   const { login, error, setError } = useAuth();
@@ -29,6 +30,9 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper px-6 py-12">
+      <div className="fixed right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex justify-center">
           <Logo />
@@ -49,16 +53,26 @@ export default function Login() {
               placeholder="you@example.com"
               required
             />
-            <Input
-              label="Password"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-            />
+            <div>
+              <Input
+                label="Password"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                required
+              />
+              <div className="mt-1 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-muted hover:text-accent"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
 
             {error && (
               <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
