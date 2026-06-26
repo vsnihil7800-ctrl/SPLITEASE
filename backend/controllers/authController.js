@@ -3,8 +3,7 @@ const crypto = require("crypto");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/email");
-
+const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/emailService");
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function randomToken() {
