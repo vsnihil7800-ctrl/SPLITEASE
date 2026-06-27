@@ -1,34 +1,17 @@
 const Group = require("../models/Group");
 const Settlement = require("../models/Settlement");
-const Expense = require("../models/Expense");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { computeNetBalances, simplifyDebts } = require("../utils/balanceEngine");
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
 
 async function assertMembership(groupId, userId, res) {
-  const group = await Group.findById(groupId).populate(
-    "members",
-    "name email upiId"
-  );
-  if (!group) {
-    res.status(404);
-    throw new Error("Group not found");
-  }
-  const isMember = group.members.some(
-    (m) => m._id.toString() === userId.toString()
-  );
-  if (!isMember) {
-    res.status(403);
-    throw new Error("You're not a member of this group");
-  }
+  const group = await Group.findById(groupId).populate("members", "name email upiId");
+  if (!group) { res.status(404); throw new Error("Group not found"); }
+  const isMember = group.members.some((m) => m._id.toString() === userId.toString());
+  if (!isMember) { res.status(403); throw new Error("You're not a member of this group"); }
   return group;
 }
 
-// ─── POST /api/settlements ────────────────────────────────────────────────────
-// Body: { groupId, fromUser, toUser, amount }
-// Creates a pending settlement record. Typically called when one person taps
-// "Record payment" against a suggested debt transaction.
+// POST /api/settlements
+// Payer records that they paid. Status = pending (waiting for receiver to confirm)
 const createSettlement = asyncHandler(async (req, res) => {
   const { groupId, fromUser, toUser, amount } = req.body;
 
@@ -36,33 +19,30 @@ const createSettlement = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("groupId, fromUser, toUser, and amount are required");
   }
-
   if (typeof amount !== "number" || amount <= 0) {
     res.status(400);
     throw new Error("amount must be a positive number");
   }
-
   if (fromUser === toUser) {
     res.status(400);
     throw new Error("fromUser and toUser must be different people");
   }
 
-  // Caller must be a group member
   const group = await assertMembership(groupId, req.user._id, res);
-
-  // Both fromUser and toUser must also be members
   const memberIds = group.members.map((m) => m._id.toString());
   if (!memberIds.includes(fromUser) || !memberIds.includes(toUser)) {
     res.status(400);
     throw new Error("fromUser and toUser must both be group members");
   }
 
+  // Only the payer (fromUser) can create a settlement request
+  if (req.user._id.toString() !== fromUser) {
+    res.status(403);
+    throw new Error("Only the payer can record a payment");
+  }
+
   const settlement = await Settlement.create({
-    groupId,
-    fromUser,
-    toUser,
-    amount,
-    status: "pending",
+    groupId, fromUser, toUser, amount, status: "pending",
   });
 
   const populated = await Settlement.findById(settlement._id)
@@ -72,34 +52,23 @@ const createSettlement = asyncHandler(async (req, res) => {
   res.status(201).json({ settlement: populated });
 });
 
-// ─── PATCH /api/settlements/:id/mark-paid ────────────────────────────────────
-// Marks a settlement as paid. Only the fromUser (payer) or toUser (receiver)
-// of the settlement may do this.
-const markSettlementPaid = asyncHandler(async (req, res) => {
+// PATCH /api/settlements/:id/confirm
+// Only the receiver (toUser) can confirm
+const confirmSettlement = asyncHandler(async (req, res) => {
   const settlement = await Settlement.findById(req.params.id);
+  if (!settlement) { res.status(404); throw new Error("Settlement not found"); }
 
-  if (!settlement) {
-    res.status(404);
-    throw new Error("Settlement not found");
-  }
-
-  const callerId = req.user._id.toString();
-  const fromId = settlement.fromUser.toString();
-  const toId = settlement.toUser.toString();
-
-  if (callerId !== fromId && callerId !== toId) {
+  if (settlement.toUser.toString() !== req.user._id.toString()) {
     res.status(403);
-    throw new Error(
-      "Only the payer or receiver of this settlement can mark it paid"
-    );
+    throw new Error("Only the receiver can confirm a payment");
   }
-
-  if (settlement.status === "paid") {
+  if (settlement.status !== "pending") {
     res.status(400);
-    throw new Error("This settlement is already marked as paid");
+    throw new Error(`Settlement is already ${settlement.status}`);
   }
 
-  settlement.status = "paid";
+  settlement.status = "confirmed";
+  settlement.confirmedAt = new Date();
   await settlement.save();
 
   const populated = await Settlement.findById(settlement._id)
@@ -109,8 +78,33 @@ const markSettlementPaid = asyncHandler(async (req, res) => {
   res.json({ settlement: populated });
 });
 
-// ─── GET /api/settlements/group/:groupId ─────────────────────────────────────
-// Returns all settlement records for a group (pending + paid), newest first.
+// PATCH /api/settlements/:id/reject
+// Only the receiver (toUser) can reject
+const rejectSettlement = asyncHandler(async (req, res) => {
+  const settlement = await Settlement.findById(req.params.id);
+  if (!settlement) { res.status(404); throw new Error("Settlement not found"); }
+
+  if (settlement.toUser.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Only the receiver can reject a payment");
+  }
+  if (settlement.status !== "pending") {
+    res.status(400);
+    throw new Error(`Settlement is already ${settlement.status}`);
+  }
+
+  settlement.status = "rejected";
+  settlement.rejectedAt = new Date();
+  await settlement.save();
+
+  const populated = await Settlement.findById(settlement._id)
+    .populate("fromUser", "name email upiId")
+    .populate("toUser", "name email upiId");
+
+  res.json({ settlement: populated });
+});
+
+// GET /api/settlements/group/:groupId
 const getGroupSettlements = asyncHandler(async (req, res) => {
   await assertMembership(req.params.groupId, req.user._id, res);
 
@@ -122,4 +116,19 @@ const getGroupSettlements = asyncHandler(async (req, res) => {
   res.json({ settlements });
 });
 
-module.exports = { createSettlement, markSettlementPaid, getGroupSettlements };
+// Keep old mark-paid for backward compat (maps to confirm)
+const markSettlementPaid = asyncHandler(async (req, res) => {
+  req.params.id = req.params.id;
+  const settlement = await Settlement.findById(req.params.id);
+  if (!settlement) { res.status(404); throw new Error("Settlement not found"); }
+  if (settlement.status !== "pending") { res.status(400); throw new Error("Already processed"); }
+  settlement.status = "confirmed";
+  settlement.confirmedAt = new Date();
+  await settlement.save();
+  const populated = await Settlement.findById(settlement._id)
+    .populate("fromUser", "name email upiId")
+    .populate("toUser", "name email upiId");
+  res.json({ settlement: populated });
+});
+
+module.exports = { createSettlement, confirmSettlement, rejectSettlement, markSettlementPaid, getGroupSettlements };

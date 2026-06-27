@@ -65,10 +65,7 @@ export default function Login() {
                 required
               />
               <div className="mt-1 text-right">
-                <Link
-                  to="/forgot-password"
-                  className="text-xs text-muted hover:text-accent"
-                >
+                <Link to="/forgot-password" className="text-xs text-muted hover:text-accent">
                   Forgot password?
                 </Link>
               </div>

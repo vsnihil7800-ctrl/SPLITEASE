@@ -24,8 +24,17 @@ const SettlementSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "paid"],
+      // pending  = payer has requested, waiting for receiver to confirm
+      // confirmed = receiver confirmed payment received
+      // rejected  = receiver rejected the payment claim
+      enum: ["pending", "confirmed", "rejected"],
       default: "pending",
+    },
+    confirmedAt: {
+      type: Date,
+    },
+    rejectedAt: {
+      type: Date,
     },
   },
   { timestamps: true }

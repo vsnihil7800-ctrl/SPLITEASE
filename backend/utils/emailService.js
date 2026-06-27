@@ -9,7 +9,7 @@ const sendVerificationEmail = async (options) => {
     from: "onboarding@resend.dev",
     to,
     subject: "Verify your SplitEase Stay email",
-    html: `<div style="font-family:sans-serif;padding:32px;"><h2>Hey ${name}, verify your email</h2><p>Click below to verify. Expires in 30 minutes.</p><a href="${verifyLink}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;">Verify email</a></div>`,
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px 24px;border:1px solid #e5e7eb;border-radius:12px;"><h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Hey ${name}, verify your email</h2><p style="color:#6b7280;font-size:14px;margin:0 0 24px;">Thanks for signing up! Click below to verify. Expires in <strong>30 minutes</strong>.</p><a href="${verifyLink}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">Verify email</a><p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">If you didn't sign up, ignore this.</p></div>`,
   });
 };
 
@@ -20,7 +20,7 @@ const sendPasswordResetEmail = async (options) => {
     from: "onboarding@resend.dev",
     to,
     subject: "Reset your SplitEase Stay password",
-    html: `<div style="font-family:sans-serif;padding:32px;"><h2>Hey ${name}, reset your password</h2><p>Click below. Expires in 30 minutes.</p><a href="${resetLink}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;">Reset password</a></div>`,
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px 24px;border:1px solid #e5e7eb;border-radius:12px;"><h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Hey ${name}, reset your password</h2><p style="color:#6b7280;font-size:14px;margin:0 0 24px;">We received a reset request. Click below — expires in <strong>30 minutes</strong>.</p><a href="${resetLink}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">Reset password</a><p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">If you didn't request this, ignore this.</p></div>`,
   });
 };
 
