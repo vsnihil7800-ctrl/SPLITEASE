@@ -52,11 +52,8 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   // Send verification email (non-fatal — user can request resend)
-  try {
-    await sendVerificationEmail({ to: user.email, name: user.name, token: verifyToken });
-  } catch (emailErr) {
-    console.error("Failed to send verification email:", emailErr.message);
-  }
+  sendVerificationEmail({ to: user.email, name: user.name, token: verifyToken })
+    .catch((emailErr) => console.error("Failed to send verification email:", emailErr.message));
 
   const token = generateToken(user._id);
 
