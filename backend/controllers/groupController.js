@@ -188,6 +188,32 @@ const getGroupBalances = asyncHandler(async (req, res) => {
     if (!netMap.has(key)) netMap.set(key, 0);
   }
 
+  // Fold in settlements. A CONFIRMED settlement is real money that moved —
+  // it must reduce the payer's debt and reduce the receiver's credit by
+  // the same amount, exactly like an expense's credit/debit pair. Without
+  // this, the balance would never change even after a payment is fully
+  // confirmed by both sides, which defeats the entire point of settling up.
+  const settlements = await Settlement.find({ groupId: group._id });
+
+  const credit = (userId, amount) => {
+    const key = userId.toString();
+    netMap.set(key, Math.round(((netMap.get(key) || 0) + amount) * 100) / 100);
+  };
+  const debit = (userId, amount) => {
+    const key = userId.toString();
+    netMap.set(key, Math.round(((netMap.get(key) || 0) - amount) * 100) / 100);
+  };
+
+  const pendingPairs = new Set(); // "fromId:toId" already awaiting confirmation
+  for (const s of settlements) {
+    if (s.status === "confirmed") {
+      credit(s.fromUser, s.amount); // payer owes less
+      debit(s.toUser, s.amount); // receiver is owed less
+    } else if (s.status === "pending") {
+      pendingPairs.add(`${s.fromUser.toString()}:${s.toUser.toString()}`);
+    }
+  }
+
   const netBalances = Array.from(netMap.entries()).map(([id, net]) => ({
     user: {
       id,
@@ -196,7 +222,14 @@ const getGroupBalances = asyncHandler(async (req, res) => {
     net,
   }));
 
-  const suggestedPayments = simplifyDebts(netMap, memberMap);
+  // Don't suggest a payment that's already sitting in someone's "confirm or
+  // reject" queue — the suggestion is recomputed from netMap (now correctly
+  // settlement-aware) on every fetch, so without this filter the same pair
+  // would keep reappearing as "still owed" for the entire window while the
+  // receiver hasn't acted yet, inviting duplicate "I paid" clicks.
+  const suggestedPayments = simplifyDebts(netMap, memberMap).filter(
+    (p) => !pendingPairs.has(`${p.from.id}:${p.to.id}`)
+  );
 
   res.json({ netBalances, suggestedPayments, totalExpenses });
 });
