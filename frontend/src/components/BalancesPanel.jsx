@@ -220,20 +220,6 @@ export default function BalancesPanel({ groupId }) {
         </div>
       ) : (
         <>
-          {/* ── Per-member net balances ── */}
-          <div className="rounded-2xl border border-hairline bg-surface">
-            <div className="divide-y divide-hairline">
-              {netBalances.map(({ user: u, net }) => (
-                <div key={u.id} className="flex items-center justify-between px-5 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{u.id === user?.id ? `${u.name} (you)` : u.name}</p>
-                  </div>
-                  <NetBadge net={net} />
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* ── You Owe / You're Owed sub-tabs ── */}
           {(() => {
             // Only rows where the logged-in person is actually a party —
