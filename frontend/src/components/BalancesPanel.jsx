@@ -7,6 +7,7 @@ import {
   rejectSettlementRequest,
 } from "../api/settlements";
 import { useAuth } from "../context/useAuth";
+import TabBar from "./TabBar";
 
 function buildUpiLink({ upiId, name, amount, note }) {
   if (!upiId) return null;
@@ -19,10 +20,6 @@ function buildUpiLink({ upiId, name, amount, note }) {
 
 function fmtInr(amount) {
   return `₹${Number(amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function NetBadge({ net }) {
@@ -86,78 +83,56 @@ function PaymentRow({ payment, groupId, currentUserId, onSettled }) {
   );
 }
 
-function SettlementHistoryRow({ settlement, currentUserId, onAction }) {
+// Lightweight standalone confirm/reject row for the "action required"
+// banner — intentionally simpler than the full history row (no date, no
+// payer-side "awaiting confirmation" branch) since every row here is, by
+// definition, already filtered to "pending AND I'm the receiver" — the
+// only state this banner ever shows.
+function PendingConfirmationRow({ settlement, onAction }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const isPending = settlement.status === "pending";
-  const isConfirmed = settlement.status === "confirmed";
-  const isRejected = settlement.status === "rejected";
-
-  const fromId = settlement.fromUser._id || settlement.fromUser.id;
-  const toId = settlement.toUser._id || settlement.toUser.id;
-  const isReceiver = toId === currentUserId;
-  const isPayer = fromId === currentUserId;
-
   const handleConfirm = async () => {
-    setLoading(true); setErr("");
-    try { await confirmSettlementRequest(settlement._id); onAction(); }
-    catch (e) { setErr(e.response?.data?.message || "Couldn't confirm."); setLoading(false); }
+    setLoading(true);
+    setErr("");
+    try {
+      await confirmSettlementRequest(settlement._id);
+      onAction();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Couldn't confirm.");
+      setLoading(false);
+    }
   };
 
   const handleReject = async () => {
-    setLoading(true); setErr("");
-    try { await rejectSettlementRequest(settlement._id); onAction(); }
-    catch (e) { setErr(e.response?.data?.message || "Couldn't reject."); setLoading(false); }
+    setLoading(true);
+    setErr("");
+    try {
+      await rejectSettlementRequest(settlement._id);
+      onAction();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Couldn't reject.");
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
       <div className="text-sm">
         <span className="font-medium text-ink">{settlement.fromUser.name}</span>
-        <span className="text-muted"> paid </span>
-        <span className="font-medium text-ink">{settlement.toUser.name}</span>
-        <span className="ml-2 text-xs text-muted">
-          {isConfirmed && settlement.confirmedAt ? fmtDate(settlement.confirmedAt) : fmtDate(settlement.createdAt)}
-        </span>
+        <span className="text-muted"> says they paid you </span>
       </div>
-
       <div className="flex items-center gap-2">
         <span className="ledger-amount text-sm font-semibold text-ink">{fmtInr(settlement.amount)}</span>
-
-        {/* Pending — receiver sees confirm/reject, payer sees waiting */}
-        {isPending && isReceiver && (
-          <>
-            <button onClick={handleConfirm} disabled={loading}
-              className="rounded-lg bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:opacity-80 disabled:opacity-50">
-              {loading ? "…" : "Confirm ✓"}
-            </button>
-            <button onClick={handleReject} disabled={loading}
-              className="rounded-lg bg-danger-soft px-2.5 py-1 text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50">
-              {loading ? "…" : "Reject ✗"}
-            </button>
-          </>
-        )}
-        {isPending && isPayer && (
-          <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
-            Awaiting confirmation
-          </span>
-        )}
-        {isPending && !isReceiver && !isPayer && (
-          <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">Pending</span>
-        )}
-
-        {/* Confirmed */}
-        {isConfirmed && (
-          <span className="rounded-full bg-success-soft px-2.5 py-1 text-xs font-medium text-success">✓ Confirmed</span>
-        )}
-
-        {/* Rejected */}
-        {isRejected && (
-          <span className="rounded-full bg-danger-soft px-2.5 py-1 text-xs font-medium text-danger">✗ Rejected</span>
-        )}
+        <button onClick={handleConfirm} disabled={loading}
+          className="rounded-lg bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:opacity-80 disabled:opacity-50">
+          {loading ? "…" : "Confirm ✓"}
+        </button>
+        <button onClick={handleReject} disabled={loading}
+          className="rounded-lg bg-danger-soft px-2.5 py-1 text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50">
+          {loading ? "…" : "Reject ✗"}
+        </button>
       </div>
-
       {err && <p className="w-full text-xs text-danger">{err}</p>}
     </div>
   );
@@ -170,8 +145,7 @@ export default function BalancesPanel({ groupId }) {
   const [balancesLoading, setBalancesLoading] = useState(true);
   const [balancesError, setBalancesError] = useState("");
   const [settlements, setSettlements] = useState([]);
-  const [settlementsLoading, setSettlementsLoading] = useState(true);
-  const [showHistory, setShowHistory] = useState(false);
+  const [direction, setDirection] = useState("owe"); // "owe" | "owed" — which sub-tab is active
 
   const fetchBalances = useCallback(async () => {
     setBalancesLoading(true); setBalancesError("");
@@ -184,11 +158,14 @@ export default function BalancesPanel({ groupId }) {
   }, [groupId]);
 
   const fetchSettlements = useCallback(async () => {
-    setSettlementsLoading(true);
     try {
       const res = await getGroupSettlementsRequest(groupId);
       setSettlements(res.data.settlements);
-    } catch { } finally { setSettlementsLoading(false); }
+    } catch {
+      // Non-fatal — this just feeds the "action required" banner and the
+      // pointer link below; Payment History (its own tab) has its own
+      // independent fetch + error handling for the real list.
+    }
   }, [groupId]);
 
   useEffect(() => {
@@ -231,7 +208,7 @@ export default function BalancesPanel({ groupId }) {
           </p>
           <div className="divide-y divide-hairline rounded-xl border border-hairline bg-surface">
             {pendingForMe.map((s) => (
-              <SettlementHistoryRow key={s._id} settlement={s} currentUserId={user?.id} onAction={handleAction} />
+              <PendingConfirmationRow key={s._id} settlement={s} onAction={handleAction} />
             ))}
           </div>
         </div>
@@ -259,43 +236,46 @@ export default function BalancesPanel({ groupId }) {
             </div>
           </div>
 
-          {/* ── Suggested payments ── */}
-          {suggestedPayments.length > 0 && (
-            <div>
-              <h3 className="mb-3 font-display text-base font-semibold text-ink">Suggested payments</h3>
-              <div className="divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
-                {suggestedPayments.map((payment, i) => (
-                  <PaymentRow key={i} payment={payment} groupId={groupId} currentUserId={user?.id} onSettled={handleAction} />
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ── You Owe / You're Owed sub-tabs ── */}
+          {(() => {
+            // Only rows where the logged-in person is actually a party —
+            // in a 3+ person group, simplifyDebts can suggest a payment
+            // between two OTHER members that doesn't involve you at all.
+            // Those aren't "your" balance, so they're deliberately left
+            // out of both tabs here rather than cluttering either list.
+            const youOwe = suggestedPayments.filter((p) => p.from.id === user?.id);
+            const owedToYou = suggestedPayments.filter((p) => p.to.id === user?.id);
+            const visible = direction === "owe" ? youOwe : owedToYou;
 
-          {suggestedPayments.length === 0 && (
-            <div className="rounded-2xl border border-hairline bg-success-soft p-5 text-center">
-              <p className="text-sm font-medium text-success">✓ Everyone is settled up!</p>
-            </div>
-          )}
+            return (
+              <div>
+                <TabBar
+                  tabs={[
+                    { id: "owe", label: `You Owe${youOwe.length ? ` (${youOwe.length})` : ""}` },
+                    { id: "owed", label: `You're Owed${owedToYou.length ? ` (${owedToYou.length})` : ""}` },
+                  ]}
+                  active={direction}
+                  onChange={setDirection}
+                />
 
-          {/* ── Settlement history ── */}
-          {settlements.length > 0 && (
-            <div>
-              <button onClick={() => setShowHistory((v) => !v)} className="text-sm font-medium text-accent hover:underline">
-                {showHistory ? "Hide" : "Show"} payment history ({settlements.length})
-              </button>
-              {showHistory && (
-                <div className="mt-3 divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
-                  {settlementsLoading ? (
-                    <p className="px-5 py-4 text-sm text-muted">Loading…</p>
+                <div className="mt-3">
+                  {visible.length > 0 ? (
+                    <div className="divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
+                      {visible.map((payment, i) => (
+                        <PaymentRow key={i} payment={payment} groupId={groupId} currentUserId={user?.id} onSettled={handleAction} />
+                      ))}
+                    </div>
                   ) : (
-                    settlements.map((s) => (
-                      <SettlementHistoryRow key={s._id} settlement={s} currentUserId={user?.id} onAction={handleAction} />
-                    ))
+                    <div className="rounded-2xl border border-hairline bg-success-soft p-5 text-center">
+                      <p className="text-sm font-medium text-success">
+                        {direction === "owe" ? "✓ You don't owe anyone right now." : "✓ No one owes you right now."}
+                      </p>
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

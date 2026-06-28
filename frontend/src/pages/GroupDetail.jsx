@@ -7,13 +7,24 @@ import { useAuth } from "../context/useAuth";
 import Logo from "../components/Logo";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
+import TabBar from "../components/TabBar";
 import ExpenseRow from "../components/ExpenseRow";
 import AddExpenseForm from "../components/AddExpenseForm";
 import BillsPanel from "../components/BillsPanel";
 import BalancesPanel from "../components/BalancesPanel";
+import PaymentHistoryPanel from "../components/PaymentHistoryPanel";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 import ChatPanel from "../components/ChatPanel";
 import ThemeToggle from "../components/ThemeToggle";
+import NotificationBell from "../components/NotificationBell";
+
+const TABS = [
+  { id: "members", label: "Members" },
+  { id: "expenses", label: "Expenses" },
+  { id: "balance", label: "Balance" },
+  { id: "analytics", label: "Analytics" },
+  { id: "chat", label: "Chat" },
+];
 
 export default function GroupDetail() {
   const { id } = useParams();
@@ -22,6 +33,7 @@ export default function GroupDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("members");
 
   const [expenses, setExpenses] = useState([]);
   const [expensesLoading, setExpensesLoading] = useState(true);
@@ -122,6 +134,7 @@ export default function GroupDetail() {
         <Logo />
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          <NotificationBell />
           <Link to="/dashboard" className="text-sm font-medium text-ink-soft hover:text-accent">
             ← Back to groups
           </Link>
@@ -165,92 +178,107 @@ export default function GroupDetail() {
             </div>
 
             <div className="mt-6">
-              <h2 className="font-display text-lg font-semibold text-ink">
-                Members ({group.members.length})
-              </h2>
-              <div className="mt-3 divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
-                {group.members.map((member) => (
-                  <div
-                    key={member._id}
-                    className="flex items-center justify-between px-5 py-3.5"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-ink">{member.name}</p>
-                      <p className="text-xs text-muted">{member.email}</p>
+              <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
+            </div>
+
+            {activeTab === "members" && (
+              <div className="mt-6">
+                <h2 className="font-display text-lg font-semibold text-ink">
+                  Members ({group.members.length})
+                </h2>
+                <div className="mt-3 divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
+                  {group.members.map((member) => (
+                    <div
+                      key={member._id}
+                      className="flex items-center justify-between px-5 py-3.5"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-ink">{member.name}</p>
+                        <p className="text-xs text-muted">{member.email}</p>
+                      </div>
+                      {member.upiId && (
+                        <span className="text-xs text-muted">UPI: {member.upiId}</span>
+                      )}
                     </div>
-                    {member.upiId && (
-                      <span className="text-xs text-muted">UPI: {member.upiId}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "expenses" && (
+              <div className="mt-6 space-y-6">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-lg font-semibold text-ink">Expenses</h2>
+                    <Button
+                      variant="accent"
+                      onClick={() => {
+                        setFormError("");
+                        setShowAddExpense(true);
+                      }}
+                    >
+                      + Add expense
+                    </Button>
+                  </div>
+
+                  <div className="mt-3">
+                    {expensesLoading && (
+                      <p className="text-sm text-muted">Loading expenses…</p>
+                    )}
+
+                    {!expensesLoading && expensesError && (
+                      <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+                        {expensesError}
+                      </p>
+                    )}
+
+                    {!expensesLoading && !expensesError && expenses.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-hairline bg-surface/50 p-8 text-center">
+                        <p className="text-sm text-muted">
+                          No expenses yet. Add the first one to start tracking who owes
+                          what.
+                        </p>
+                      </div>
+                    )}
+
+                    {!expensesLoading && !expensesError && expenses.length > 0 && (
+                      <div className="divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
+                        {expenses.map((expense) => (
+                          <ExpenseRow
+                            key={expense._id}
+                            expense={expense}
+                            currentUserId={user?.id}
+                            onDelete={handleDeleteExpense}
+                            deleting={deletingId === expense._id}
+                          />
+                        ))}
+                      </div>
                     )}
                   </div>
-                ))}
+                </div>
+
+                <BillsPanel groupId={id} members={group.members} />
               </div>
-            </div>
+            )}
 
-            <div className="mt-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-semibold text-ink">Expenses</h2>
-                <Button
-                  variant="accent"
-                  onClick={() => {
-                    setFormError("");
-                    setShowAddExpense(true);
-                  }}
-                >
-                  + Add expense
-                </Button>
+            {activeTab === "balance" && (
+              <div className="mt-6 space-y-6">
+                <BalancesPanel groupId={id} />
+                <PaymentHistoryPanel groupId={id} />
               </div>
+            )}
 
-              <div className="mt-3">
-                {expensesLoading && (
-                  <p className="text-sm text-muted">Loading expenses…</p>
-                )}
-
-                {!expensesLoading && expensesError && (
-                  <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-                    {expensesError}
-                  </p>
-                )}
-
-                {!expensesLoading && !expensesError && expenses.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-hairline bg-surface/50 p-8 text-center">
-                    <p className="text-sm text-muted">
-                      No expenses yet. Add the first one to start tracking who owes
-                      what.
-                    </p>
-                  </div>
-                )}
-
-                {!expensesLoading && !expensesError && expenses.length > 0 && (
-                  <div className="divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
-                    {expenses.map((expense) => (
-                      <ExpenseRow
-                        key={expense._id}
-                        expense={expense}
-                        currentUserId={user?.id}
-                        onDelete={handleDeleteExpense}
-                        deleting={deletingId === expense._id}
-                      />
-                    ))}
-                  </div>
-                )}
+            {activeTab === "analytics" && (
+              <div className="mt-6">
+                <AnalyticsPanel groupId={id} />
               </div>
-            </div>
+            )}
 
-            <div className="mt-6">
-              <BillsPanel groupId={id} members={group.members} />
-            </div>
-
-            <div className="mt-6">
-              <BalancesPanel groupId={id} />
-            </div>
-
-            <div className="mt-6">
-              <AnalyticsPanel groupId={id} />
-            </div>
-
-            <div className="mt-6">
-              <ChatPanel groupId={id} />
-            </div>
+            {activeTab === "chat" && (
+              <div className="mt-6">
+                <ChatPanel groupId={id} />
+              </div>
+            )}
           </>
         )}
       </main>
