@@ -227,8 +227,6 @@ export default function BalancesPanel({ groupId }) {
                 <div key={u.id} className="flex items-center justify-between px-5 py-3.5">
                   <div>
                     <p className="text-sm font-medium text-ink">{u.id === user?.id ? `${u.name} (you)` : u.name}</p>
-                    {net > 0.005 && <p className="text-xs text-muted">is owed money</p>}
-                    {net < -0.005 && <p className="text-xs text-muted">owes money</p>}
                   </div>
                   <NetBadge net={net} />
                 </div>
