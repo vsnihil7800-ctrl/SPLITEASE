@@ -9,6 +9,7 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 const User = require("./models/User");
 const Group = require("./models/Group");
 const Message = require("./models/Message");
+const { personalRoom } = require("./utils/notify");
 
 // Routes
 const authRoutes = require("./routes/authRoutes");
@@ -17,6 +18,7 @@ const expenseRoutes = require("./routes/expenseRoutes");
 const billRoutes = require("./routes/billRoutes");
 const settlementRoutes = require("./routes/settlementRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +55,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/bills", billRoutes);
 app.use("/api/settlements", settlementRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ─── Socket.io: auth handshake ────────────────────────────────────────────────
 // The client connects with `io(url, { auth: { token } })` (the same JWT used
@@ -82,6 +85,13 @@ io.use(async (socket, next) => {
 // ─── Socket.io: chat events ────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id} (user ${socket.user._id})`);
+
+  // Every authenticated socket auto-joins its own personal room, used for
+  // pushing notifications (settlement created/confirmed/rejected, etc.) —
+  // unlike group chat rooms, no explicit client "join" call is needed here,
+  // since a user's own notifications aren't optional/scoped the way a
+  // specific group's chat room is.
+  socket.join(personalRoom(socket.user._id));
 
   // joinGroup / leaveGroup take a plain groupId string, same wire format as
   // before this phase — but now membership is actually verified server-side

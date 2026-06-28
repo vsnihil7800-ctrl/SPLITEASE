@@ -1,6 +1,7 @@
 const Group = require("../models/Group");
 const Settlement = require("../models/Settlement");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { notify } = require("../utils/notify");
 
 async function assertMembership(groupId, userId, res) {
   const group = await Group.findById(groupId).populate("members", "name email upiId");
@@ -49,6 +50,15 @@ const createSettlement = asyncHandler(async (req, res) => {
     .populate("fromUser", "name email upiId")
     .populate("toUser", "name email upiId");
 
+  await notify(req.app.get("io"), {
+    userId: toUser,
+    type: "settlement_created",
+    title: "Payment claim received",
+    message: `${populated.fromUser.name} says they paid you ₹${amount.toFixed(2)} in ${group.name}. Confirm or reject it.`,
+    groupId,
+    settlementId: settlement._id,
+  });
+
   res.status(201).json({ settlement: populated });
 });
 
@@ -74,6 +84,17 @@ const confirmSettlement = asyncHandler(async (req, res) => {
   const populated = await Settlement.findById(settlement._id)
     .populate("fromUser", "name email upiId")
     .populate("toUser", "name email upiId");
+
+  const group = await Group.findById(settlement.groupId).select("name");
+
+  await notify(req.app.get("io"), {
+    userId: settlement.fromUser,
+    type: "settlement_confirmed",
+    title: "Payment confirmed",
+    message: `${populated.toUser.name} confirmed your ₹${settlement.amount.toFixed(2)} payment in ${group?.name || "the group"}.`,
+    groupId: settlement.groupId,
+    settlementId: settlement._id,
+  });
 
   res.json({ settlement: populated });
 });
@@ -101,6 +122,17 @@ const rejectSettlement = asyncHandler(async (req, res) => {
     .populate("fromUser", "name email upiId")
     .populate("toUser", "name email upiId");
 
+  const group = await Group.findById(settlement.groupId).select("name");
+
+  await notify(req.app.get("io"), {
+    userId: settlement.fromUser,
+    type: "settlement_rejected",
+    title: "Payment rejected",
+    message: `${populated.toUser.name} says they haven't received your ₹${settlement.amount.toFixed(2)} payment in ${group?.name || "the group"}. Check in with them.`,
+    groupId: settlement.groupId,
+    settlementId: settlement._id,
+  });
+
   res.json({ settlement: populated });
 });
 
@@ -116,11 +148,16 @@ const getGroupSettlements = asyncHandler(async (req, res) => {
   res.json({ settlements });
 });
 
-// Keep old mark-paid for backward compat (maps to confirm)
+// Keep old mark-paid for backward compat (maps to confirm). Same
+// authorization rule as confirmSettlement — only the receiver can confirm —
+// since this is just an older route name for the identical action.
 const markSettlementPaid = asyncHandler(async (req, res) => {
-  req.params.id = req.params.id;
   const settlement = await Settlement.findById(req.params.id);
   if (!settlement) { res.status(404); throw new Error("Settlement not found"); }
+  if (settlement.toUser.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Only the receiver can confirm a payment");
+  }
   if (settlement.status !== "pending") { res.status(400); throw new Error("Already processed"); }
   settlement.status = "confirmed";
   settlement.confirmedAt = new Date();
@@ -128,6 +165,17 @@ const markSettlementPaid = asyncHandler(async (req, res) => {
   const populated = await Settlement.findById(settlement._id)
     .populate("fromUser", "name email upiId")
     .populate("toUser", "name email upiId");
+
+  const group = await Group.findById(settlement.groupId).select("name");
+  await notify(req.app.get("io"), {
+    userId: settlement.fromUser,
+    type: "settlement_confirmed",
+    title: "Payment confirmed",
+    message: `${populated.toUser.name} confirmed your ₹${settlement.amount.toFixed(2)} payment in ${group?.name || "the group"}.`,
+    groupId: settlement.groupId,
+    settlementId: settlement._id,
+  });
+
   res.json({ settlement: populated });
 });
 

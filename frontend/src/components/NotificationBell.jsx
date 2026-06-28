@@ -131,7 +131,7 @@ export default function NotificationBell() {
                 n.groupId ? (
                   <Link
                     key={n._id}
-                    to={`/groups/${n.groupId}#payment-history`}
+                    to={`/groups/${n.groupId}?tab=balance`}
                     className="block"
                   >
                     <NotificationRow notification={n} onClick={handleRowClick} />

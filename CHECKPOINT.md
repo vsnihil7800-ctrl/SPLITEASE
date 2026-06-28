@@ -30,8 +30,12 @@ Full-stack MVP called **SplitEase Stay** — a roommate/hostel/sports-team/colle
 12. ✅ Group chat (Socket.io)
 13. ✅ Analytics dashboard
 14. ✅ Final README
-15. 🔶 Guided deployment (MongoDB Atlas → Render → Vercel) ← **guide written, live walkthrough with user in progress**
-16. ✅ Dark mode + PWA install (Phase 16, from the Phase 16+ roadmap doc)
+15. ✅ Guided deployment (MongoDB Atlas → Render → Vercel) — live on Render + Vercel, see Phase 16.5/16.6 history below
+16. ✅ Dark mode + PWA install (Phase 16, from the Phase 16+ roadmap doc) — confirmed live
+17. ✅ Forgot password + email verification via Resend — confirmed live by user (see Phase 17 section below)
+18. 🔶 Settlement confirm/reject + in-app notifications + Payment History tab — confirm/reject backend was already real in the user's uploaded zip; notification system (model, socket push, bell UI) and the standalone Payment History tab were both built this session. Only the actual git push is still outstanding (see Phase 18 section below).
+
+**Original 15-item MVP spec is fully complete and live. Phases 16–18 are additions from the post-MVP roadmap / the user's own follow-up requests.**
 
 ## Phases 1–7 summary
 See previous CHECKPOINT notes — fully captured. Short version: full backend (Express, Mongoose models for User/Group/Expense/Bill/Settlement/Message, JWT auth, all routes), full frontend auth + groups + expenses UI, "digital passbook" design theme.
@@ -407,15 +411,17 @@ All originally-planned routes are now built, including Analytics (Phase 13). Rem
 ## Deployment plan (Phase 15, guide written — live walkthrough in progress)
 Accounts already exist for MongoDB Atlas, Render, and Vercel. Full step-by-step guide now lives in `DEPLOYMENT.md` at the project root — see Phase 15 section above for what it covers. `CLIENT_URL` (backend env) and `VITE_API_URL`/`VITE_SOCKET_URL` (frontend env) need to point at each other's deployed URLs; `DEPLOYMENT.md` Stage 4 exists specifically because `CLIENT_URL` has to be set *after* the Vercel URL exists, which is easy to miss in a strict linear walkthrough.
 
-## Latest checkpoint zip
+## Latest checkpoint zip (as of Phase 16.6 — superseded, see the very end of this file for the current one)
 `splitease-stay-PHASE16.6-darkmode-confirmed-live.zip` — contains full `backend/` + `frontend/` (including the working `frontend/vercel.json` and `frontend/src/registerServiceWorker.js`, both fixed/added this phase) + root `README.md` + `DEPLOYMENT.md` + this updated `CHECKPOINT.md`. Replaces all earlier zips. `frontend/node_modules` and `frontend/dist` are excluded from the zip (as always) — run `npm install` after unzipping. **This zip reflects the exact code now confirmed live and working on Vercel** — dark mode toggle and PWA install both tested and working by the user. See Phase 16.6 section above for full history.
 
 ---
-**Next step when resuming:** Two independent threads are open, pick up whichever the user wants:
+**[SUPERSEDED — kept here as history; see the end of this file for the real current status] Next step when resuming, as of Phase 16.6:** Two independent threads are open, pick up whichever the user wants:
 1. **Phase 15 — finish the live deployment walkthrough.** Still sitting wherever it was left (see Phase 15's section above) — ask which of `DEPLOYMENT.md`'s 5 stages was actually reached rather than assuming a restart from scratch. This is the one that actually puts a live URL in the user's hands and completes the original MVP build order.
 2. **Phase 17+ — keep working through `PHASE16_ROADMAP.md`.** Phase 16 (A4 dark mode + A1 PWA) is done; the roadmap's own suggested sequencing (Group E in that doc) goes to Phase 17 next: A3 forgot-password + A2(ii) email verification, which needs the user to set up a real email-sending provider (Resend/SendGrid) — flag that account-creation step early, same as Atlas/Render/Vercel were handled.
 
 **Also worth doing, lower priority than either of the above**: a real on-device install test (an actual phone, not headless Chromium) for the new PWA support, ideally once the app is live from Phase 15 — see Phase 16's "what this didn't cover" note.
+
+*(Both resolved since: Phase 15 went live, Phase 17 — email auth — is done and confirmed live by the user. See the Phase 18 section at the end of this file for what's actually next.)*
 
 ---
 
@@ -495,3 +501,111 @@ git config --global credential.helper manager
 - ✅ Core app (groups, balances, login) — unaffected throughout, never broke
 
 Phase 16 (PWA + dark mode) is now genuinely complete and live. Next up per the user's own roadmap: **Phase 17 — forgot password + email verification (Resend)**.
+
+---
+
+## Phase 17 — Forgot password + email verification (Resend) — DONE, confirmed live by user
+
+This checkpoint file (as packaged in the "PHASE18-payment-confirm" zip the user later uploaded) jumped straight from Phase 16.6 to Phase 18 work with no Phase 17 section at all — yet the actual code in that same zip clearly has a complete, working email-auth system (`utils/emailService.js` using Resend's HTTPS API, `authController.js` with register/verify-email/forgot-password/reset-password, `pages/VerifyEmail.jsx`, `pages/ForgotPassword.jsx`, `pages/ResetPassword.jsx`, `Register.jsx`'s "check your inbox" flow). The user separately confirmed via screenshots that registration → verification email → click-to-verify → login all worked end-to-end live on `app.splitease.net` / the Render backend.
+
+**Recording this now, after the fact, so the doc matches reality**: Phase 17 is done and was live before Phase 18 began. The original `ENETUNREACH`/SMTP-timeout bug from earlier (raw Nodemailer + Gmail over IPv6, failing on Render's network) is **not present in this codebase** — it uses Resend's HTTPS API instead, which sidesteps that failure mode entirely. Whatever fixed that bug happened in a session this handoff chain doesn't have a record of — treat the email-sending path as working, not as still needing the `family: 4` Nodemailer fix that was discussed earlier in the user's chat history before the real code was seen.
+
+**Known minor issue, not yet fixed**: the verification email's greeting renders whatever was typed into the name field at signup verbatim (confirmed via a real screenshot showing "Hello sdfsdfdsf dsfsdf," from a test signup) — not a bug, just unsanitized test data, but worth a real signup test to confirm the happy path looks right.
+
+---
+
+## Phase 18 — Settlement confirm/reject + in-app notifications + Payment History tab (IN PROGRESS)
+
+**Context:** The user separately built and zipped a first pass at this phase (`splitease-stay-PHASE18-payment-confirm.zip`) outside any session this handoff chain has visibility into, then asked for it to be reviewed before pushing. That zip's actual content was assessed against the 5-point spec the user described:
+
+| Requested | Found in the uploaded zip |
+|---|---|
+| "Mark as Paid" button on settlements | ✅ Real, working (`PaymentRow`'s "I paid" button → `createSettlementRequest`) |
+| Receiver gets notification in app | ⚠️ Partial — a banner inside `BalancesPanel` ("🔔 N payments waiting…"), visible only if the receiver happens to open that specific group's Balances panel. No cross-page badge, no push, no socket event, no `Notification` model. |
+| Receiver accepts/rejects | ✅ Real, working (`confirmSettlementRequest`/`rejectSettlementRequest`, properly access-controlled — only `toUser` can act) |
+| Settlement marked confirmed with timestamp | ✅ Real (`confirmedAt`/`rejectedAt` fields on the `Settlement` model, set correctly) |
+| Payment history tab in group | ⚠️ Partial — exists as a "Show payment history (N)" collapsible toggle nested inside `BalancesPanel`, not a first-class tab/section the way Bills/Chat/Analytics each got their own spot on `GroupDetail`. |
+
+User's decision after seeing this breakdown: **build the fuller version of the two partial items**, then push everything together. That build is what's described below — done in this session, on top of the user's uploaded Phase 18 zip as the base (not from scratch), but **not yet pushed to git/Render as of this checkpoint** — see "What's left" at the end of this section.
+
+### Backend — new: real in-app notification system
+
+**`backend/models/Notification.js`** — new. Fields: `userId` (recipient), `type` (enum: `settlement_created` | `settlement_confirmed` | `settlement_rejected`), `title`, `message`, `groupId`, `settlementId`, `read` (default false), timestamps. Compound index on `{userId, createdAt: -1}` — the only access pattern this needs (a user's own feed, newest first).
+
+**`backend/utils/notify.js`** — new. `notify(io, {userId, type, title, message, groupId, settlementId})`: persists a `Notification`, then if `io` is provided, emits it live to `user:<userId>` — that recipient's personal Socket.io room. Deliberately never throws into the caller: a notification failure (e.g. a transient DB hiccup) must not roll back or block the settlement action that triggered it. Fuzz/scenario-tested in isolation (mocked `Notification.create`) — confirmed it emits to the correct room, still persists with `io` omitted, and swallows DB failures cleanly returning `null` rather than throwing. `personalRoom(userId)` helper (`` `user:${userId}` ``) is also exported so `server.js` can use the identical room name when auto-joining sockets.
+
+**`backend/server.js`** — every authenticated socket now auto-joins its own personal room (`socket.join(personalRoom(socket.user._id))`) immediately on connect, right alongside the existing chat-room logic — no explicit client "join" call needed for this, unlike `joinGroup`, since a user's own notifications aren't scoped/optional the way a specific group's chat room is.
+
+**`backend/controllers/settlementController.js`** — `notify()` wired into all three lifecycle points:
+- `createSettlement` → notifies `toUser` ("Payment claim received… Confirm or reject it.")
+- `confirmSettlement` → notifies `fromUser` ("Payment confirmed")
+- `rejectSettlement` → notifies `fromUser` ("Payment rejected… Check in with them.")
+- **Also fixed a real pre-existing bug while in this file**: the legacy backward-compat `markSettlementPaid` (kept around for the old `/mark-paid` route name) had **no authorization check at all** — unlike `confirmSettlement`, it never verified the caller was actually `toUser`, meaning anyone could confirm any settlement via the old route. Added the same check `confirmSettlement` has, plus the same notify call, since semantically it's the identical action under an older name.
+
+**`backend/controllers/notificationController.js`** + **`backend/routes/notificationRoutes.js`** — new:
+- `GET /api/notifications` (`?limit`, default 30 capped at 100) — returns `{notifications, unreadCount}` for the logged-in user, newest first
+- `PATCH /api/notifications/:id/read` — marks one read, only the recipient can
+- `PATCH /api/notifications/read-all` — marks every unread one read in a single `updateMany`
+- Mounted at `/api/notifications` in `server.js`. Static `/read-all` route placed before dynamic `/:id/read`, per this project's established routing convention.
+
+### Frontend — new: notification bell + context, plus reused for the history tab
+
+**`frontend/src/api/notifications.js`** — new: `getMyNotificationsRequest`, `markNotificationReadRequest`, `markAllNotificationsReadRequest`.
+
+**`frontend/src/context/NotificationContext.jsx`** + **`useNotifications.js`** — new, same context+hook shape as `ThemeContext`/`useTheme`. Sits inside `AuthProvider` in `App.jsx` (needs `useAuth()`), wraps the whole router so notifications stay live across every page, not just one panel. Fetches the initial list+count on login, then listens for live `notification` socket events for the rest of the session. **Reuses the exact same shared socket singleton as chat** (`api/socket.js`'s `getSocket`/`disconnectSocket`) — this provider only ever *adds* a `"notification"` listener to that shared connection and removes that one listener on its own cleanup; it deliberately never calls `disconnectSocket()` itself, since `ChatPanel` may be using the same connection concurrently and tearing it down here would break chat. Exposes `markRead`/`markAllRead` with optimistic local updates (instant badge feedback, self-heals from the next fetch if the API call fails — acceptable since "mark read" has no destructive consequence either way).
+
+**`frontend/src/components/NotificationBell.jsx`** — new. Bell icon with an unread-count badge (caps display at "9+"), click opens a dropdown panel (close-on-outside-click, no existing dropdown pattern in this codebase to mirror — `Modal.jsx` is a full-screen overlay, this is a separate, simpler implementation). Each row shows a type icon (💰 created / ✅ confirmed / ⚠️ rejected), title, message, relative timestamp ("5m ago" style), and an unread dot; clicking marks it read and — if it references a group — navigates there via a wrapping `<Link>`. Added to both `Dashboard.jsx` and `GroupDetail.jsx` headers, right next to `ThemeToggle` in each (same placement convention Phase 16 established).
+
+### Payment History tab — promoted out of BalancesPanel (DONE, same session)
+
+The second "partial" item from the original gap assessment is now also addressed:
+
+**`frontend/src/components/PaymentHistoryPanel.jsx`** — new, standalone component (same self-contained shape as `BillsPanel`/`ChatPanel`/`AnalyticsPanel`). Moved `SettlementHistoryRow` here verbatim from `BalancesPanel` — same confirm/reject UI, same access-control display logic (receiver sees Confirm/Reject, payer sees "Awaiting confirmation", everyone else sees "Pending"). Adds a status filter row (All / Pending / Confirmed / Rejected) and a small summary line ("N payments recorded · M pending"), neither of which existed in the old buried toggle.
+
+**`frontend/src/components/BalancesPanel.jsx`** — simplified:
+- Kept the "🔔 N payments waiting for your confirmation" action-required banner, since that's genuinely actionable and belongs right next to the balances it's about — but it now uses a new, smaller `PendingConfirmationRow` (no date, no payer-side branch — every row here is by definition already filtered to "pending AND I'm the receiver", so the simpler row is all that's ever needed) instead of importing the full `SettlementHistoryRow`.
+- Removed the old "Show/Hide payment history (N)" collapsible toggle and the full settlement list it rendered — replaced with a one-line pointer ("Looking for past payments? See full payment history →") linking to `#payment-history`.
+- Removed now-unused `showHistory` state, `settlementsLoading` state (nothing displays a separate loading state for the settlements fetch anymore — it just silently feeds the banner + pointer link), and the `fmtDate` helper (moved to `PaymentHistoryPanel`, the only place that still needs it).
+
+**`frontend/src/pages/GroupDetail.jsx`** — `PaymentHistoryPanel` mounted as its own section (`<div id="payment-history">`) between Balances and Analytics, matching the anchor the pointer link and `NotificationBell` both target.
+
+**`frontend/src/components/NotificationBell.jsx`** — updated so a notification's group link now navigates straight to `/groups/:id#payment-history` instead of just `/groups/:id` — since that's literally where the referenced settlement lives. (Minor known limitation: if the user is already on that exact group page, React Router won't trigger a scroll-to-anchor on a hash-only link to the current route — low priority, not a correctness bug, just a missed scroll on an edge case.)
+
+**Verified this round (same static/logic approach as the rest of this phase — see caveats above, still no real running server/browser)**: full backend `node --check` sweep (no regressions), full frontend JSX sweep across all 48 files (was 47 before `PaymentHistoryPanel.jsx`), grep-verified no stray references to the removed `SettlementHistoryRow`/`showHistory`/`settlementsLoading` identifiers anywhere outside their new legitimate home, and an isolated trace of the status-filter logic (6 scenarios: all/pending/confirmed/rejected filtering + empty-list + pending-count derivation, all correct).
+
+## Phase 18.1 — Balance calculation fix (settlements were never factored in)
+
+**Bug found during user testing**: clicking "I paid" correctly created a `pending` settlement (the confirm/reject flow itself was right), but `getGroupBalances` in `backend/controllers/groupController.js` never queried `Settlement` at all — it computed net balances purely from `Expense` documents. Result: balances never moved regardless of settlement status, confirmed or not, which defeats the entire point of settling up.
+
+**Fix** — `getGroupBalances` now also fetches the group's settlements and folds them into the same `netMap` that expenses build, using the identical credit/debit pattern already used for expense splits:
+- `confirmed` settlements: credit the payer (`fromUser`), debit the receiver (`toUser`) — real money moved.
+- `pending` settlements: don't touch the balance yet (correct — nothing's confirmed), but the pair gets added to a `pendingPairs` set so `suggestedPayments` filters it out. Without that filter, the exact same "pay this person" suggestion would keep reappearing every time balances refresh, inviting duplicate pending settlements for one debt.
+
+**Verified with a real logic test** (not just read-through) — `node` script directly exercising `computeNetBalances` + the new fold-in logic with a 2-person scenario: confirmed pending settlement leaves balance untouched, confirmed settlement zeroes it out correctly, pending settlement correctly suppresses the duplicate suggestion. All assertions passed.
+
+**Process note for whoever resumes next**: getting this one-file fix from "written and tested" to "in the user's repo" took several failed attempts — a reconstructed-from-memory version of the surrounding file (the parts of `groupController.js` not actually viewed in full) was nearly committed before the user's own `git diff` caught it. Lesson banked: when handing a user a full-file replacement to paste, always pull the literal current content first (`view`/`cat` the real file) rather than rewriting surrounding code from memory, even when confident — confidence was wrong here on `generateUniqueInviteCode`.
+
+## Phase 18.2 — Group page restructured into tabs
+
+User feedback after seeing the live page: everything (Members, Expenses, Bills, Balances, Payment History, Analytics, Chat) stacked on one long scrolling page felt disorganized.
+
+**`frontend/src/components/TabBar.jsx`** — new, small reusable tab bar (active tab gets `bg-accent text-ink`, matching `Button`'s existing `accent` variant exactly). Used twice: the group page's top-level tabs, and a second instance inside `BalancesPanel` for the new sub-tabs below.
+
+**`frontend/src/pages/GroupDetail.jsx`** — restructured around 5 tabs: **Members → Expenses → Balance → Analytics → Chat**. Bills stayed folded into the Expenses tab (already grouped together visually before this change). Group info card (name/type/invite code) stays above the tabs always — orientation, not tab content. `activeTab` state now also initializes from a `?tab=` URL query param (falls back to `members` if absent or unrecognized), so deep links can land directly on a specific tab.
+
+**`frontend/src/components/BalancesPanel.jsx`** — the single combined "Suggested payments" list is now split into two sub-tabs: **"You Owe"** and **"You're Owed"** (each shows a count badge when non-empty), filtering by whether the logged-in user is `payment.from.id` or `payment.to.id`. The 🔔 confirmation-needed banner and the net-balances overview stay visible above the sub-tabs regardless of which one is active — those are the highest-priority items and shouldn't be hidden behind a click. **Deliberate scope decision**: in a 3+ person group, `simplifyDebts` can suggest an optimal payment between two *other* members that doesn't involve the logged-in user at all — those rows now simply don't appear in either sub-tab, since they aren't "your" balance. Previously they showed in the one combined list regardless of who was involved; this is an intentional behavior change, not an oversight.
+
+**`frontend/src/components/PaymentHistoryPanel.jsx`** now renders directly inside the Balance tab (right below `BalancesPanel`, same screen, no more scroll-to-anchor) instead of its own `#payment-history`-anchored section further down the page. The old "See full payment history →" pointer link in `BalancesPanel` was removed since it's no longer needed — both panels are already on the same view.
+
+**Follow-on fix caught before it shipped broken**: `NotificationBell.jsx`'s group-notification links pointed at `/groups/:id#payment-history` — that anchor no longer exists post-restructure. Changed to `/groups/:id?tab=balance`, which `GroupDetail.jsx`'s new query-param-aware `activeTab` initializer now picks up correctly.
+
+**Verified**: real `npm install` + `vite build` (731 modules, clean) + `eslint` on all 5 touched/new files (one pre-existing, unrelated warning in `BalancesPanel.jsx` at the `fetchBalances()`/`fetchSettlements()` effect call — present before this change, not introduced by it). **Not verified**: an actual click-through in a real browser against live data — no backend/Mongo connection available in this sandbox to authenticate and load a real group. The filtering logic (`payment.from.id === user?.id`) is simple enough to be low-risk, but this is still a real gap versus the rest of this project's "real headless-browser pass" standard from Phase 16 onward — recommend the user click through all 5 tabs and both Balance sub-tabs on the live site as the actual verification step here.
+
+## Latest checkpoint zip
+`splitease-stay-PHASE18-full.zip` — full `backend/` + `frontend/` + root `README.md`/`DEPLOYMENT.md`/this `CHECKPOINT.md`, reflecting everything through Phase 18.2. **All of this is already committed and pushed to the user's GitHub repo** (commits `6f28145` → `f97618e` → `d8bfe79` → `81c2265` on `main`) — this zip is a complete snapshot/backup, not a pending patch. `node_modules`/`dist` excluded as always.
+
+---
+**Next step when resuming:**
+1. **User needs to click-through test the tabs on the live site** — all 5 top-level tabs, both Balance sub-tabs ("You Owe"/"You're Owed"), and the 🔔 confirm/reject flow with two real accounts. This is the one thing not yet verified in a real browser (see Phase 18.2's note above).
+2. **Still not done from Phase 18's original "what's left"**: a real two-client Socket.io test of the live notification push (one account creates a settlement, confirm the *other* account's bell updates without a refresh) — ask the user to do this as part of the same click-through pass above, since they'll already have two accounts open.
+3. Beyond that, nothing else is currently queued. Ask the user if there's a next feature/roadmap item (see `PHASE16_ROADMAP.md`'s Group B/C/D items — recurring expenses, receipt photos, leave-group, tests/CI), or if the project is considered feature-complete for now and the focus should shift to resume/portfolio polish.

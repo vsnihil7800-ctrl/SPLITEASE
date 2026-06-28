@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { getGroupByIdRequest } from "../api/groups";
 import { getExpensesByGroupRequest, createExpenseRequest, deleteExpenseRequest } from "../api/expenses";
 import { disconnectSocket } from "../api/socket";
@@ -8,7 +8,7 @@ import Logo from "../components/Logo";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
 import TabBar from "../components/TabBar";
-import ExpenseRow from "../components/ExpenseRow";
+import ExpenseRow, { CATEGORY_META } from "../components/ExpenseRow";
 import AddExpenseForm from "../components/AddExpenseForm";
 import BillsPanel from "../components/BillsPanel";
 import BalancesPanel from "../components/BalancesPanel";
@@ -19,65 +19,63 @@ import ThemeToggle from "../components/ThemeToggle";
 import NotificationBell from "../components/NotificationBell";
 
 const TABS = [
-  { id: "members", label: "Members" },
+  { id: "members",  label: "Members" },
   { id: "expenses", label: "Expenses" },
-  { id: "balance", label: "Balance" },
-  { id: "analytics", label: "Analytics" },
-  { id: "chat", label: "Chat" },
+  { id: "balance",  label: "Balance" },
+  { id: "analytics",label: "Analytics" },
+  { id: "chat",     label: "Chat" },
 ];
+
+const ALL_CATEGORIES = ["Food", "Travel", "Rent", "Utilities", "Entertainment", "Other"];
 
 export default function GroupDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [group, setGroup] = useState(null);
+  const [group, setGroup]   = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError]   = useState("");
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState("members");
 
-  const [expenses, setExpenses] = useState([]);
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = searchParams.get("tab");
+    return TABS.some((t) => t.id === requested) ? requested : "members";
+  });
+
+  const [expenses, setExpenses]               = useState([]);
   const [expensesLoading, setExpensesLoading] = useState(true);
-  const [expensesError, setExpensesError] = useState("");
-  const [deletingId, setDeletingId] = useState(null);
+  const [expensesError, setExpensesError]     = useState("");
+  const [deletingId, setDeletingId]           = useState(null);
+  const [categoryFilter, setCategoryFilter]   = useState("All");
 
-  const [showAddExpense, setShowAddExpense] = useState(false);
-  const [formSubmitting, setFormSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
+  const [showAddExpense, setShowAddExpense]   = useState(false);
+  const [formSubmitting, setFormSubmitting]   = useState(false);
+  const [formError, setFormError]             = useState("");
 
   useEffect(() => {
     const fetchGroup = async () => {
-      setLoading(true);
-      setError("");
+      setLoading(true); setError("");
       try {
         const res = await getGroupByIdRequest(id);
         setGroup(res.data.group);
       } catch (err) {
         setError(err.response?.data?.message || "Couldn't load this group.");
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     fetchGroup();
   }, [id]);
 
-  // Tear down the chat socket when leaving this page entirely (not on every
-  // re-render — ChatPanel itself joins/leaves the room per groupId change).
-  useEffect(() => {
-    return () => disconnectSocket();
-  }, []);
+  useEffect(() => { return () => disconnectSocket(); }, []);
 
   useEffect(() => {
     const fetchExpenses = async () => {
-      setExpensesLoading(true);
-      setExpensesError("");
+      setExpensesLoading(true); setExpensesError("");
       try {
         const res = await getExpensesByGroupRequest(id);
         setExpenses(res.data.expenses);
       } catch (err) {
         setExpensesError(err.response?.data?.message || "Couldn't load expenses.");
-      } finally {
-        setExpensesLoading(false);
-      }
+      } finally { setExpensesLoading(false); }
     };
     fetchExpenses();
   }, [id]);
@@ -97,23 +95,18 @@ export default function GroupDetail() {
       await navigator.clipboard.writeText(group.inviteCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard API unavailable — silently ignore, code is still visible on screen
-    }
+    } catch { /* clipboard unavailable */ }
   };
 
   const handleAddExpense = async (payload) => {
-    setFormError("");
-    setFormSubmitting(true);
+    setFormError(""); setFormSubmitting(true);
     try {
       await createExpenseRequest({ ...payload, groupId: id });
       setShowAddExpense(false);
       await refreshExpenses();
     } catch (err) {
       setFormError(err.response?.data?.message || "Couldn't add the expense.");
-    } finally {
-      setFormSubmitting(false);
-    }
+    } finally { setFormSubmitting(false); }
   };
 
   const handleDeleteExpense = async (expenseId) => {
@@ -123,10 +116,23 @@ export default function GroupDetail() {
       await refreshExpenses();
     } catch (err) {
       setExpensesError(err.response?.data?.message || "Couldn't delete the expense.");
-    } finally {
-      setDeletingId(null);
-    }
+    } finally { setDeletingId(null); }
   };
+
+  // Normalise legacy category names to current set
+  const normalise = (cat) => {
+    const map = { Electricity: "Utilities", WiFi: "Utilities", Groceries: "Food", Sports: "Entertainment", Misc: "Other" };
+    return map[cat] || cat || "Other";
+  };
+
+  // Derived: which categories actually exist in this group's expenses
+  const presentCategories = [...new Set(expenses.map((e) => normalise(e.category)))];
+  const filterOptions = ["All", ...ALL_CATEGORIES.filter((c) => presentCategories.includes(c))];
+
+  const filteredExpenses =
+    categoryFilter === "All"
+      ? expenses
+      : expenses.filter((e) => normalise(e.category) === categoryFilter);
 
   return (
     <div className="min-h-screen bg-paper">
@@ -181,6 +187,7 @@ export default function GroupDetail() {
               <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
             </div>
 
+            {/* ── Members ── */}
             {activeTab === "members" && (
               <div className="mt-6">
                 <h2 className="font-display text-lg font-semibold text-ink">
@@ -188,10 +195,7 @@ export default function GroupDetail() {
                 </h2>
                 <div className="mt-3 divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
                   {group.members.map((member) => (
-                    <div
-                      key={member._id}
-                      className="flex items-center justify-between px-5 py-3.5"
-                    >
+                    <div key={member._id} className="flex items-center justify-between px-5 py-3.5">
                       <div>
                         <p className="text-sm font-medium text-ink">{member.name}</p>
                         <p className="text-xs text-muted">{member.email}</p>
@@ -205,6 +209,7 @@ export default function GroupDetail() {
               </div>
             )}
 
+            {/* ── Expenses ── */}
             {activeTab === "expenses" && (
               <div className="mt-6 space-y-6">
                 <div>
@@ -212,19 +217,37 @@ export default function GroupDetail() {
                     <h2 className="font-display text-lg font-semibold text-ink">Expenses</h2>
                     <Button
                       variant="accent"
-                      onClick={() => {
-                        setFormError("");
-                        setShowAddExpense(true);
-                      }}
+                      onClick={() => { setFormError(""); setShowAddExpense(true); }}
                     >
                       + Add expense
                     </Button>
                   </div>
 
+                  {/* Category filter pills */}
+                  {filterOptions.length > 1 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {filterOptions.map((cat) => {
+                        const meta = CATEGORY_META[cat];
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() => setCategoryFilter(cat)}
+                            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              categoryFilter === cat
+                                ? "bg-ink text-paper"
+                                : "bg-paper-dim text-muted hover:text-ink"
+                            }`}
+                          >
+                            {meta && <span>{meta.icon}</span>}
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="mt-3">
-                    {expensesLoading && (
-                      <p className="text-sm text-muted">Loading expenses…</p>
-                    )}
+                    {expensesLoading && <p className="text-sm text-muted">Loading expenses…</p>}
 
                     {!expensesLoading && expensesError && (
                       <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
@@ -235,15 +258,20 @@ export default function GroupDetail() {
                     {!expensesLoading && !expensesError && expenses.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-hairline bg-surface/50 p-8 text-center">
                         <p className="text-sm text-muted">
-                          No expenses yet. Add the first one to start tracking who owes
-                          what.
+                          No expenses yet. Add the first one to start tracking who owes what.
                         </p>
                       </div>
                     )}
 
-                    {!expensesLoading && !expensesError && expenses.length > 0 && (
+                    {!expensesLoading && !expensesError && expenses.length > 0 && filteredExpenses.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-hairline bg-surface/50 p-8 text-center">
+                        <p className="text-sm text-muted">No {categoryFilter} expenses yet.</p>
+                      </div>
+                    )}
+
+                    {!expensesLoading && !expensesError && filteredExpenses.length > 0 && (
                       <div className="divide-y divide-hairline rounded-2xl border border-hairline bg-surface">
-                        {expenses.map((expense) => (
+                        {filteredExpenses.map((expense) => (
                           <ExpenseRow
                             key={expense._id}
                             expense={expense}
@@ -261,6 +289,7 @@ export default function GroupDetail() {
               </div>
             )}
 
+            {/* ── Balance ── */}
             {activeTab === "balance" && (
               <div className="mt-6 space-y-6">
                 <BalancesPanel groupId={id} />
@@ -268,12 +297,14 @@ export default function GroupDetail() {
               </div>
             )}
 
+            {/* ── Analytics ── */}
             {activeTab === "analytics" && (
               <div className="mt-6">
                 <AnalyticsPanel groupId={id} />
               </div>
             )}
 
+            {/* ── Chat ── */}
             {activeTab === "chat" && (
               <div className="mt-6">
                 <ChatPanel groupId={id} />

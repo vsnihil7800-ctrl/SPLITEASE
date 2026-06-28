@@ -2,20 +2,24 @@ import { useState, useMemo } from "react";
 import Input from "./Input";
 import Button from "./Button";
 
-const CATEGORIES = ["Rent", "Electricity", "Food", "Travel", "WiFi", "Groceries", "Sports", "Misc"];
+const CATEGORIES = [
+  { value: "Food",          icon: "🍽️",  label: "Food" },
+  { value: "Travel",        icon: "✈️",  label: "Travel" },
+  { value: "Rent",          icon: "🏠",  label: "Rent" },
+  { value: "Utilities",     icon: "⚡",  label: "Utilities" },
+  { value: "Entertainment", icon: "🎬",  label: "Entertainment" },
+  { value: "Other",         icon: "🧾",  label: "Other" },
+];
 
 export default function AddExpenseForm({ members, currentUserId, onCreate, submitting, error }) {
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("Misc");
-  const [paidBy, setPaidBy] = useState(currentUserId);
+  const [title, setTitle]         = useState("");
+  const [amount, setAmount]       = useState("");
+  const [category, setCategory]   = useState("Other");
+  const [paidBy, setPaidBy]       = useState(currentUserId);
   const [splitType, setSplitType] = useState("equal");
 
-  // Equal split: which members participate (defaults to everyone)
   const [participantIds, setParticipantIds] = useState(members.map((m) => m._id));
-
-  // Custom split: per-member amount strings (kept as strings while editing)
-  const [customAmounts, setCustomAmounts] = useState(
+  const [customAmounts, setCustomAmounts]   = useState(
     Object.fromEntries(members.map((m) => [m._id, ""]))
   );
 
@@ -35,15 +39,7 @@ export default function AddExpenseForm({ members, currentUserId, onCreate, submi
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    const payload = {
-      title,
-      amount: numericAmount,
-      paidBy,
-      category,
-      splitType,
-    };
-
+    const payload = { title, amount: numericAmount, paidBy, category, splitType };
     if (splitType === "equal") {
       payload.splits = participantIds.map((userId) => ({ userId }));
     } else {
@@ -51,11 +47,10 @@ export default function AddExpenseForm({ members, currentUserId, onCreate, submi
         .filter(([, v]) => Number(v) > 0)
         .map(([userId, v]) => ({ userId, amount: Number(v) }));
     }
-
     onCreate(payload);
   };
 
-  const equalSplitInvalid = splitType === "equal" && participantIds.length === 0;
+  const equalSplitInvalid  = splitType === "equal"  && participantIds.length === 0;
   const customSplitInvalid = splitType === "custom" && Math.abs(customRemainder) >= 0.01;
 
   return (
@@ -68,32 +63,38 @@ export default function AddExpenseForm({ members, currentUserId, onCreate, submi
         required
       />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Amount (₹)"
-          type="number"
-          step="0.01"
-          min="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.00"
-          className="ledger-amount"
-          required
-        />
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-soft">Category</span>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-lg border border-hairline bg-surface px-3.5 py-2.5 text-ink outline-none focus:border-accent"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+      <Input
+        label="Amount (₹)"
+        type="number"
+        step="0.01"
+        min="0.01"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        placeholder="0.00"
+        className="ledger-amount"
+        required
+      />
+
+      {/* Category pill selector */}
+      <div>
+        <span className="mb-1.5 block text-sm font-medium text-ink-soft">Category</span>
+        <div className="grid grid-cols-3 gap-2">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategory(c.value)}
+              className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-medium transition-colors ${
+                category === c.value
+                  ? "border-accent bg-accent-soft text-ink"
+                  : "border-hairline text-muted hover:bg-paper-dim"
+              }`}
+            >
+              <span className="text-xl">{c.icon}</span>
+              {c.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <label className="block">
