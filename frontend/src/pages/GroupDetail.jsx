@@ -168,16 +168,18 @@ export default function GroupDetail() {
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-dashed border-hairline bg-paper px-4 py-3 text-center">
-                  <p className="text-xs text-muted">Invite code</p>
-                  <p className="ledger-amount mt-0.5 text-lg font-semibold tracking-widest text-ink">
-                    {group.inviteCode}
-                  </p>
+                <div className="flex items-center gap-2 rounded-xl border border-dashed border-hairline bg-paper px-3 py-2">
+                  <div>
+                    <p className="text-[10px] text-muted">Invite code</p>
+                    <p className="ledger-amount text-sm font-semibold tracking-widest text-ink">
+                      {group.inviteCode}
+                    </p>
+                  </div>
                   <button
                     onClick={handleCopyCode}
-                    className="mt-1 text-xs font-medium text-accent hover:underline"
+                    className="ml-1 rounded-lg bg-accent-soft px-2 py-1 text-xs font-medium text-accent hover:opacity-80"
                   >
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? "✓" : "Copy"}
                   </button>
                 </div>
               </div>

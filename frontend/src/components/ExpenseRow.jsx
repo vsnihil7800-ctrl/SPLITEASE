@@ -5,7 +5,7 @@ export const CATEGORY_META = {
   Utilities:     { icon: "⚡",  color: "#b07cc6" },
   Entertainment: { icon: "🎬",  color: "#d6543f" },
   Other:         { icon: "🧾",  color: "#6b7280" },
-  // Legacy aliases (old DB docs)
+  // Legacy aliases
   Electricity:   { icon: "⚡",  color: "#b07cc6" },
   WiFi:          { icon: "📶",  color: "#6b7280" },
   Groceries:     { icon: "🛒",  color: "#e3992f" },
@@ -15,6 +15,7 @@ export const CATEGORY_META = {
 
 export default function ExpenseRow({ expense, currentUserId, onDelete, deleting }) {
   const canDelete = expense.paidBy?._id === currentUserId;
+  const iPaid = expense.paidBy?._id === currentUserId;
   const meta = CATEGORY_META[expense.category] || CATEGORY_META.Other;
 
   const formattedAmount = expense.amount.toLocaleString("en-IN", {
@@ -27,7 +28,9 @@ export default function ExpenseRow({ expense, currentUserId, onDelete, deleting 
   });
 
   return (
-    <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+    <div className={`flex items-center justify-between gap-4 px-5 py-3.5 ${
+      iPaid ? "border-l-2 border-success" : "border-l-2 border-danger"
+    }`}>
       <div className="flex min-w-0 items-center gap-3">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
@@ -52,9 +55,14 @@ export default function ExpenseRow({ expense, currentUserId, onDelete, deleting 
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        <span className="ledger-amount text-sm font-semibold text-ink">
-          ₹{formattedAmount}
-        </span>
+        <div className="text-right">
+          <span className={`ledger-amount text-sm font-semibold ${iPaid ? "text-success" : "text-danger"}`}>
+            ₹{formattedAmount}
+          </span>
+          <p className={`text-[10px] font-medium ${iPaid ? "text-success" : "text-danger"}`}>
+            {iPaid ? "You paid" : "You owe"}
+          </p>
+        </div>
         {canDelete && (
           <button
             onClick={() => onDelete(expense._id)}
