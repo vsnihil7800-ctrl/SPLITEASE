@@ -1,37 +1,20 @@
 const Expense = require("../models/Expense");
 const Group = require("../models/Group");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { notify } = require("../utils/notify");
+const { logActivity } = require("../utils/activityLogger");
 
-const VALID_CATEGORIES = [
-  "Rent",
-  "Electricity",
-  "Food",
-  "Travel",
-  "WiFi",
-  "Groceries",
-  "Sports",
-  "Misc",
-];
+const VALID_CATEGORIES = ["Food", "Travel", "Rent", "Utilities", "Entertainment", "Other"];
 
-// Splits `amount` equally among `userIds`, rounding to 2 decimal places.
-// Any leftover paisa from rounding is assigned to the first user so the
-// splits always sum EXACTLY to `amount` (no money silently lost/gained).
 const buildEqualSplits = (amount, userIds) => {
   const share = Math.floor((amount / userIds.length) * 100) / 100;
   const splits = userIds.map((userId) => ({ userId, amount: share }));
-
   const allocated = share * userIds.length;
   const remainder = Math.round((amount - allocated) * 100) / 100;
-
-  if (remainder !== 0) {
-    splits[0].amount = Math.round((splits[0].amount + remainder) * 100) / 100;
-  }
-
+  if (remainder !== 0) splits[0].amount = Math.round((splits[0].amount + remainder) * 100) / 100;
   return splits;
 };
 
-// Validates that custom splits sum to the expense amount, within a
-// floating-point-safe tolerance of half a paisa.
 const splitsSumMatchesAmount = (splits, amount) => {
   const total = splits.reduce((sum, s) => sum + s.amount, 0);
   return Math.abs(total - amount) < 0.005;
@@ -42,91 +25,77 @@ const createExpense = asyncHandler(async (req, res) => {
   const { groupId, title, amount, paidBy, splitType, splits, category, date } = req.body;
 
   if (!groupId || !title || !title.trim() || amount === undefined || !paidBy) {
-    res.status(400);
-    throw new Error("groupId, title, amount, and paidBy are required");
+    res.status(400); throw new Error("groupId, title, amount, and paidBy are required");
   }
 
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-    res.status(400);
-    throw new Error("Amount must be a positive number");
-  }
-
-  if (category && !VALID_CATEGORIES.includes(category)) {
-    res.status(400);
-    throw new Error("Invalid expense category");
+    res.status(400); throw new Error("Amount must be a positive number");
   }
 
   const group = await Group.findById(groupId);
-  if (!group) {
-    res.status(404);
-    throw new Error("Group not found");
-  }
+  if (!group) { res.status(404); throw new Error("Group not found"); }
 
   const memberIds = group.members.map((m) => m.toString());
-
   if (!memberIds.includes(req.user._id.toString())) {
-    res.status(403);
-    throw new Error("You're not a member of this group");
+    res.status(403); throw new Error("You're not a member of this group");
   }
-
   if (!memberIds.includes(paidBy.toString())) {
-    res.status(400);
-    throw new Error("paidBy must be a member of this group");
+    res.status(400); throw new Error("paidBy must be a member of this group");
   }
 
   const resolvedSplitType = splitType === "custom" ? "custom" : "equal";
   let resolvedSplits;
 
   if (resolvedSplitType === "equal") {
-    // Equal split defaults to ALL group members unless the caller explicitly
-    // passed a subset of userIds to split among (e.g. "split between me and one roommate").
-    const participantIds =
-      Array.isArray(splits) && splits.length > 0
-        ? splits.map((s) => s.userId)
-        : memberIds;
-
+    const participantIds = Array.isArray(splits) && splits.length > 0
+      ? splits.map((s) => s.userId) : memberIds;
     const invalidParticipant = participantIds.find((id) => !memberIds.includes(id.toString()));
-    if (invalidParticipant) {
-      res.status(400);
-      throw new Error("All split participants must be members of this group");
-    }
-
+    if (invalidParticipant) { res.status(400); throw new Error("All split participants must be group members"); }
     resolvedSplits = buildEqualSplits(numericAmount, participantIds);
   } else {
     if (!Array.isArray(splits) || splits.length === 0) {
-      res.status(400);
-      throw new Error("Custom split requires a non-empty splits array");
+      res.status(400); throw new Error("Custom split requires a non-empty splits array");
     }
-
     const invalidParticipant = splits.find((s) => !memberIds.includes(s.userId?.toString()));
-    if (invalidParticipant) {
-      res.status(400);
-      throw new Error("All split participants must be members of this group");
-    }
-
+    if (invalidParticipant) { res.status(400); throw new Error("All split participants must be group members"); }
     if (!splitsSumMatchesAmount(splits, numericAmount)) {
-      res.status(400);
-      throw new Error("Custom split amounts must add up to the total expense amount");
+      res.status(400); throw new Error("Custom split amounts must add up to the total");
     }
-
     resolvedSplits = splits.map((s) => ({ userId: s.userId, amount: Number(s.amount) }));
   }
 
+  const resolvedCategory = VALID_CATEGORIES.includes(category) ? category : "Other";
+
   const expense = await Expense.create({
-    groupId,
-    title: title.trim(),
-    amount: numericAmount,
-    paidBy,
-    splitType: resolvedSplitType,
-    splits: resolvedSplits,
-    category: category || "Misc",
-    date: date || Date.now(),
+    groupId, title: title.trim(), amount: numericAmount, paidBy,
+    splitType: resolvedSplitType, splits: resolvedSplits,
+    category: resolvedCategory, date: date || Date.now(),
   });
 
   const populated = await Expense.findById(expense._id)
     .populate("paidBy", "name email upiId")
     .populate("splits.userId", "name email upiId");
+
+  // Notify all group members except the payer
+  const io = req.app.get("io");
+  for (const memberId of memberIds) {
+    if (memberId !== paidBy.toString()) {
+      await notify(io, {
+        userId: memberId,
+        type: "expense_created",
+        title: "New expense added",
+        message: `${populated.paidBy.name} added "${title.trim()}" for ₹${numericAmount.toFixed(2)} in ${group.name}.`,
+        groupId,
+      });
+    }
+  }
+
+  // Log to activity feed
+  await logActivity(io, {
+    groupId, actor: req.user._id, type: "expense_created",
+    meta: { title: title.trim(), amount: numericAmount, category: resolvedCategory },
+  });
 
   res.status(201).json({ expense: populated });
 });
@@ -134,18 +103,9 @@ const createExpense = asyncHandler(async (req, res) => {
 // GET /api/expenses/group/:groupId
 const getExpensesByGroup = asyncHandler(async (req, res) => {
   const group = await Group.findById(req.params.groupId);
-  if (!group) {
-    res.status(404);
-    throw new Error("Group not found");
-  }
-
-  const isMember = group.members.some(
-    (m) => m.toString() === req.user._id.toString()
-  );
-  if (!isMember) {
-    res.status(403);
-    throw new Error("You're not a member of this group");
-  }
+  if (!group) { res.status(404); throw new Error("Group not found"); }
+  const isMember = group.members.some((m) => m.toString() === req.user._id.toString());
+  if (!isMember) { res.status(403); throw new Error("You're not a member of this group"); }
 
   const expenses = await Expense.find({ groupId: req.params.groupId })
     .populate("paidBy", "name email upiId")
@@ -158,28 +118,18 @@ const getExpensesByGroup = asyncHandler(async (req, res) => {
 // DELETE /api/expenses/:id
 const deleteExpense = asyncHandler(async (req, res) => {
   const expense = await Expense.findById(req.params.id);
-
-  if (!expense) {
-    res.status(404);
-    throw new Error("Expense not found");
-  }
-
-  // Only the person who paid can delete the expense. (Group-admin-level
-  // deletion can be added later if the app grows roles/permissions.)
+  if (!expense) { res.status(404); throw new Error("Expense not found"); }
   if (expense.paidBy.toString() !== req.user._id.toString()) {
-    res.status(403);
-    throw new Error("Only the person who paid can delete this expense");
+    res.status(403); throw new Error("Only the person who paid can delete this expense");
   }
+
+  await logActivity(req.app.get("io"), {
+    groupId: expense.groupId, actor: req.user._id, type: "expense_deleted",
+    meta: { title: expense.title, amount: expense.amount },
+  });
 
   await expense.deleteOne();
-
   res.json({ message: "Expense deleted", id: req.params.id });
 });
 
-module.exports = {
-  createExpense,
-  getExpensesByGroup,
-  deleteExpense,
-  buildEqualSplits, // exported for unit testing
-  splitsSumMatchesAmount, // exported for unit testing
-};
+module.exports = { createExpense, getExpensesByGroup, deleteExpense, buildEqualSplits, splitsSumMatchesAmount };
