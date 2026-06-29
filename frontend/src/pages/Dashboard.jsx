@@ -121,7 +121,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-paper">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Logo />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <ThemeToggle />
           <NotificationBell />
           <Link to="/profile" className="text-sm font-medium text-ink-soft hover:text-accent">👤 {user?.name?.split(" ")[0]}</Link>

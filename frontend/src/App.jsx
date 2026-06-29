@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import InstallPrompt from "./components/InstallPrompt";
+import BackendWakeUp from "./components/BackendWakeUp";
 
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         </Routes>
         <InstallPrompt />
+        <BackendWakeUp />
       </NotificationProvider>
     </AuthProvider>
   );
