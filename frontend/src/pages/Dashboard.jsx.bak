@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import { getMyGroupsRequest, createGroupRequest, joinGroupRequest } from "../api/groups";
 import { getGroupBalancesRequest } from "../api/settlements";
@@ -124,7 +124,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <NotificationBell />
-          <Link to="/profile" className="text-sm font-medium text-ink-soft hover:text-accent">👤 {user?.name?.split(" ")[0]}</Link>
+          <span className="text-sm text-ink-soft">Hi, {user?.name?.split(" ")[0]}</span>
           <Button variant="secondary" onClick={handleLogout}>
             Log out
           </Button>

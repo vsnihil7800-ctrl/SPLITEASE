@@ -22,6 +22,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const activityRoutes    = require("./routes/activityRoutes");
 const recurringRoutes   = require("./routes/recurringRoutes");
 const exportRoutes      = require("./routes/exportRoutes");
+const profileRoutes     = require("./routes/profileRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -45,7 +46,8 @@ app.use("/api/messages",      messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/activity",      activityRoutes);
 app.use("/api/recurring",     recurringRoutes);
-app.use("/api/groups",        exportRoutes);  // mounts as /api/groups/:groupId/export/csv|json
+app.use("/api/groups",        exportRoutes);
+app.use("/api/profile",       profileRoutes);  // mounts as /api/groups/:groupId/export/csv|json
 
 io.use(async (socket, next) => {
   try {
