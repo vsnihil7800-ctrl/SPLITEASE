@@ -1,5 +1,58 @@
 const Notification = require("../models/Notification");
+const User = require("../models/User");
 const { asyncHandler } = require("../middleware/errorHandler");
+
+// GET /api/notifications/vapid-public-key
+// Returns the VAPID public key so the frontend can subscribe via PushManager.
+const getVapidPublicKey = asyncHandler(async (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY;
+  if (!key) {
+    res.status(503);
+    throw new Error("Web push is not configured on this server");
+  }
+  res.json({ vapidPublicKey: key });
+});
+
+// POST /api/notifications/push-subscribe
+// Body: { subscription } — the PushSubscription JSON from the browser.
+// Upserts by endpoint so re-subscribing the same device is idempotent.
+const subscribePush = asyncHandler(async (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    res.status(400);
+    throw new Error("Invalid push subscription object");
+  }
+
+  const user = await User.findById(req.user._id).select("+pushSubscriptions");
+  if (!user) { res.status(404); throw new Error("User not found"); }
+
+  // Remove any existing entry for this endpoint, then append fresh one.
+  user.pushSubscriptions = user.pushSubscriptions.filter(
+    (s) => s.endpoint !== subscription.endpoint
+  );
+  user.pushSubscriptions.push({
+    endpoint: subscription.endpoint,
+    keys: { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth },
+  });
+  await user.save();
+
+  res.json({ ok: true });
+});
+
+// POST /api/notifications/push-unsubscribe
+// Body: { endpoint } — removes that device's subscription.
+const unsubscribePush = asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+  if (!endpoint) { res.status(400); throw new Error("endpoint is required"); }
+
+  const user = await User.findById(req.user._id).select("+pushSubscriptions");
+  if (!user) { res.status(404); throw new Error("User not found"); }
+
+  user.pushSubscriptions = user.pushSubscriptions.filter((s) => s.endpoint !== endpoint);
+  await user.save();
+
+  res.json({ ok: true });
+});
 
 // GET /api/notifications
 // Returns this user's notifications, newest first, plus an unread count.
@@ -55,4 +108,8 @@ module.exports = {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  subscribePush,
+  unsubscribePush,
+  getVapidPublicKey,
 };
+

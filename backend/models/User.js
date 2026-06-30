@@ -12,6 +12,22 @@ const UserSchema = new mongoose.Schema(
     emailVerifyExpires: { type: Date, select: false },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
+    // Web Push subscriptions — one per browser/device. Each object matches
+    // the PushSubscription JSON shape: { endpoint, keys: { p256dh, auth } }.
+    // select: false keeps them out of every normal query (token size + privacy).
+    pushSubscriptions: {
+      type: [
+        {
+          endpoint: { type: String, required: true },
+          keys: {
+            p256dh: { type: String, required: true },
+            auth:   { type: String, required: true },
+          },
+        },
+      ],
+      select: false,
+      default: [],
+    },
   },
   { timestamps: true }
 );

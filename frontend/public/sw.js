@@ -1,14 +1,11 @@
 // SplitEase Stay — service worker
 //
-// Scope is deliberately narrow: this only caches the same-origin static app
-// shell (HTML/JS/CSS/icons), using a stale-while-revalidate strategy so the
-// app still opens (and updates in the background) with a flaky connection.
+// Responsibilities:
+//   1. Cache the app shell (HTML/JS/CSS/icons) with stale-while-revalidate.
+//   2. Receive Web Push notifications and show them via the Notifications API.
+//   3. Handle notificationclick to open/focus the relevant page.
 //
-// It NEVER caches anything under /api or /socket.io. This is a money app —
-// balances, expenses, and bills must always come from the network. A cached
-// balance is a wrong balance. Cross-origin requests (the deployed backend,
-// Google Fonts) are left alone entirely; the browser's own HTTP cache
-// handles those.
+// Never caches /api or /socket.io — a cached balance is a wrong balance.
 
 const CACHE_NAME = "splitease-stay-shell-v1";
 
@@ -21,6 +18,8 @@ const PRECACHE_URLS = [
   "/icons/icon-512.png",
 ];
 
+// ─── Install ────────────────────────────────────────────────────────────────
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -29,6 +28,8 @@ self.addEventListener("install", (event) => {
       .then(() => self.skipWaiting())
   );
 });
+
+// ─── Activate ───────────────────────────────────────────────────────────────
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -41,12 +42,11 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ─── Fetch (shell cache) ────────────────────────────────────────────────────
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
-  // Only ever handle same-origin GETs. Everything else (API calls, the
-  // Socket.io handshake, cross-origin fonts) passes straight through to the
-  // network exactly as if there were no service worker at all.
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
@@ -59,25 +59,73 @@ self.addEventListener("fetch", (event) => {
 
       const networkFetch = fetch(request)
         .then((response) => {
-          // Only cache real, valid responses (skip opaque/error responses).
           if (response && response.ok) {
             cache.put(request, response.clone());
           }
           return response;
         })
         .catch(async () => {
-          // Offline and not cached: for a page navigation, fall back to the
-          // offline page rather than letting the request hang/fail blank.
           if (request.mode === "navigate") {
             return cache.match("/offline.html");
           }
           return cached;
         });
 
-      // Stale-while-revalidate: serve the cached shell instantly if we have
-      // one (fast repeat opens, works offline), while still updating the
-      // cache in the background for next time.
       return cached || networkFetch;
     })
+  );
+});
+
+// ─── Web Push ───────────────────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch {
+    data = { title: "SplitEase Stay", body: event.data.text() };
+  }
+
+  const title = data.title || "SplitEase Stay";
+  const options = {
+    body: data.body || data.message || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url || "/" },
+    // Vibrate pattern: 200ms on, 100ms off, 200ms on
+    vibrate: [200, 100, 200],
+    // Collapse same-tag notifications (avoids spamming the notification tray)
+    tag: "splitease-notification",
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ─── Notification click ─────────────────────────────────────────────────────
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        // If the app is already open in a tab, focus it and navigate.
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin)) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        // Otherwise open a new window.
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
   );
 });

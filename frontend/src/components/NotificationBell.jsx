@@ -14,9 +14,12 @@ function fmtRelativeTime(dateStr) {
 }
 
 const TYPE_ICON = {
-  settlement_created: "💰",
+  settlement_created:   "💰",
   settlement_confirmed: "✅",
-  settlement_rejected: "⚠️",
+  settlement_rejected:  "⚠️",
+  expense_created:      "🧾",
+  bill_created:         "📋",
+  bill_paid:            "✅",
 };
 
 function NotificationRow({ notification, onClick }) {
@@ -42,14 +45,75 @@ function NotificationRow({ notification, onClick }) {
   );
 }
 
+// Renders the push-toggle row at the bottom of the notification dropdown.
+function PushToggle({ pushStatus, subscribePush, unsubscribePush }) {
+  const [busy, setBusy] = useState(false);
+
+  if (pushStatus === "unsupported") return null;
+
+  const handleToggle = async () => {
+    setBusy(true);
+    if (pushStatus === "subscribed") {
+      await unsubscribePush();
+    } else {
+      await subscribePush();
+    }
+    setBusy(false);
+  };
+
+  // Push was blocked by the user in the browser — show a nudge.
+  if (pushStatus === "denied") {
+    return (
+      <div className="border-t border-hairline px-4 py-3">
+        <p className="text-xs text-muted">
+          Push blocked in browser settings.{" "}
+          <span className="text-ink">Enable Notifications</span> to get alerts.
+        </p>
+      </div>
+    );
+  }
+
+  const isSubscribed = pushStatus === "subscribed";
+  const isLoading    = pushStatus === "loading" || busy;
+
+  return (
+    <div className="flex items-center justify-between border-t border-hairline px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="text-base" aria-hidden="true">{isSubscribed ? "🔔" : "🔕"}</span>
+        <span className="text-xs text-muted">
+          {isSubscribed ? "Push on" : "Push off"}
+        </span>
+      </div>
+      <button
+        onClick={handleToggle}
+        disabled={isLoading}
+        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 ${
+          isSubscribed ? "bg-accent" : "bg-paper-dim"
+        }`}
+        aria-label={isSubscribed ? "Disable push notifications" : "Enable push notifications"}
+        role="switch"
+        aria-checked={isSubscribed}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+            isSubscribed ? "translate-x-[18px]" : "translate-x-[2px]"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function NotificationBell() {
-  const { notifications, unreadCount, loading, markRead, markAllRead } = useNotifications();
+  const {
+    notifications, unreadCount, loading,
+    markRead, markAllRead,
+    pushStatus, subscribePush, unsubscribePush,
+  } = useNotifications();
+
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
-  // Close on outside click — standard dropdown behavior, no existing
-  // pattern in this codebase to mirror (Modal.jsx is a full-screen overlay,
-  // not a positioned dropdown), so this is a self-contained implementation.
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
@@ -63,12 +127,7 @@ export default function NotificationBell() {
 
   const handleRowClick = (notification) => {
     if (!notification.read) markRead(notification._id);
-    // Notifications that reference a group navigate there on click — the
-    // group page's Payment History tab is where the underlying settlement
-    // actually lives, so this is the natural destination.
-    if (notification.groupId) {
-      setOpen(false);
-    }
+    if (notification.groupId) setOpen(false);
   };
 
   return (
@@ -102,6 +161,7 @@ export default function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-[min(320px,90vw)] overflow-hidden rounded-2xl border border-hairline bg-surface shadow-lg">
+          {/* Header */}
           <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
             <h3 className="font-display text-sm font-semibold text-ink">Notifications</h3>
             {unreadCount > 0 && (
@@ -114,7 +174,8 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          {/* List */}
+          <div className="max-h-80 overflow-y-auto">
             {loading && (
               <p className="px-4 py-6 text-center text-sm text-muted">Loading…</p>
             )}
@@ -141,6 +202,13 @@ export default function NotificationBell() {
                 )
               )}
           </div>
+
+          {/* Push toggle */}
+          <PushToggle
+            pushStatus={pushStatus}
+            subscribePush={subscribePush}
+            unsubscribePush={unsubscribePush}
+          />
         </div>
       )}
     </div>
